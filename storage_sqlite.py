@@ -123,3 +123,9 @@ def registrar_auditoria(usuario, rol, ticket, campo, antes, despues, motivo):
                       VALUES (?,?,?,?,?,?,?,?)""",
                    (datetime.now().isoformat(), usuario, rol, ticket, str(campo), str(antes), str(despues), str(motivo)))
         cn.commit()
+
+
+def get_connection():
+    cn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cn.row_factory = sqlite3.Row
+    return cn
