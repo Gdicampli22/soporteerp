@@ -13,23 +13,15 @@ def validar_ticket(data):
 # === SISTEMA DE NOTAS INTERNAS (PLACEHOLDER) ===
 def mostrar_notas(id_ticket, conn):
     st.subheader("📝 Notas internas")
-
-    notas = conn.execute(
-        "SELECT fecha, usuario, nota FROM Notas WHERE id_ticket=? ORDER BY fecha DESC",
-        (id_ticket,)
-    ).fetchall()
-
+    notas = conn.execute("SELECT fecha, usuario, nota FROM Notas WHERE id_ticket=? ORDER BY fecha DESC",(id_ticket,)).fetchall()
     for n in notas:
         st.info(f"**{n[1]}** – {n[0]}  
 {n[2]}")
-
+{n[2]}")
     nueva = st.text_area("Agregar nueva nota")
-
     if st.button("Guardar nota"):
-        conn.execute(
-            "INSERT INTO Notas (id_ticket, fecha, usuario, nota) VALUES (?,?,?,?)",
-            (id_ticket, str(datetime.date.today()), st.session_state.get("user",""), nueva)
-        )
+        conn.execute("INSERT INTO Notas (id_ticket, fecha, usuario, nota) VALUES (?,?,?,?)",
+                     (id_ticket, str(datetime.date.today()), st.session_state.get("user",""), nueva))
         conn.commit()
         st.rerun()
 
@@ -296,7 +288,8 @@ def form_alta_ticket(df_tickets: pd.DataFrame, df_users: pd.DataFrame):
         agente_soporte = st.selectbox("Asignar a agente*", sorted(agentes))
     else:
         agente_soporte = st.session_state["nombre_agente"]
-        st.info(f"El ticket se asignará a vos: **{agente_soporte}**")
+        st.info(f"**{n[1]}** – {n[0]}  
+{n[2]}")
 
     comentarios = st.text_area("Comentarios iniciales", placeholder="Detalle el incidente, pasos para replicar, capturas, etc.")
 
