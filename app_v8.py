@@ -1,38 +1,13 @@
 import streamlit as st, pandas as pd, altair as alt, time
-
-
-# === VALIDACIONES PROFESIONALES ===
-def validar_ticket(data):
-    obligatorios = ["Empresa","Usuario_Reportante","Modulo","Prioridad","Categoria","Descripcion"]
-    for campo in obligatorios:
-        if not data.get(campo):
-            st.error(f"El campo {campo} es obligatorio.")
-            return False
-    return True
-
-# === SISTEMA DE NOTAS INTERNAS (PLACEHOLDER) ===
-def mostrar_notas(id_ticket, conn):
-    st.subheader("📝 Notas internas")
-    notas = conn.execute("SELECT fecha, usuario, nota FROM Notas WHERE id_ticket=? ORDER BY fecha DESC",(id_ticket,)).fetchall()
-    for n in notas:
-        st.info(f"**{n[1]}** – {n[0]}  
-{n[2]}")
-{n[2]}")
-    nueva = st.text_area("Agregar nueva nota")
-    if st.button("Guardar nota"):
-        conn.execute("INSERT INTO Notas (id_ticket, fecha, usuario, nota) VALUES (?,?,?,?)",
-                     (id_ticket, str(datetime.date.today()), st.session_state.get("user",""), nueva))
-        conn.commit()
-        st.rerun()
-
-st.image('static/logo.png', width=180)
-st.markdown('# 🧰 Soporte de Aplicaciones ERP')
-st.image('static/banner.jpg', use_container_width=True)
-
 from datetime import datetime, timedelta, date
 
-# ====== CONFIG ======
-st.set_page_config(page_title="Soporte ERP - v8 (Portfolio)", layout="wide")
+# ====== CONFIG - AÑADIR UN TÍTULO Y CONFIGURAR EL LAYOUT ======
+st.set_page_config(
+    page_title="Soporte ERP - Plataforma de Gestión",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 SESSION_TIMEOUT = 15 * 60
 
 MODULOS = ["Ventas", "Facturación", "Inventario", "Producción", "Logística", "Compras", "Tesorería", "Contabilidad"]
@@ -68,15 +43,46 @@ else:
         list_clientes, list_reportantes, add_cliente_si_no_existe, add_reportante_si_no_existe, _conn
     )
 
-# ====== UI THEME ======
+# ====== UI THEME (Profesional V9.3) ======
 def aplicar_tema():
+    # Colores profesionales
+    PRIMARY_COLOR = "#007BFF" 
+    BACKGROUND_COLOR = "#f5f7fa" 
+    TEXT_COLOR = "#2c3e50" 
+
+    st.markdown(f"""
+    <style>
+    /* Global Background and Text */
+    .stApp {{
+        background-color: {BACKGROUND_COLOR};
+        color: {TEXT_COLOR};
+    }}
+    /* Primary Buttons */
+    .stButton>button {{
+        background-color: {PRIMARY_COLOR};
+        color: white;
+        border-radius: 8px;
+        padding: 0.4em 1em;
+        border: none;
+        transition: background-color 0.3s;
+    }}
+    .stButton>button:hover {{
+        background-color: #0056b3; 
+    }}
+    /* Metric/KPI coloring (resaltar el valor) */
+    [data-testid="stMetricValue"] {{
+        color: {PRIMARY_COLOR};
+        font-weight: bold;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Tema Oscuro
     if st.session_state.get("tema","Claro")=="Oscuro":
         st.markdown("""
         <style>
         :root,.stApp{background-color:#0f1117;color:#e5e7eb}
-        .stButton>button{background:#2d2f36;color:#e5e7eb;border-radius:10px}
-        .stSelectbox>div>div,.stTextInput>div>div>input,.stTextArea textarea,.stDateInput input{
-            background:#1a1d24!important;color:#e5e7eb!important;border:1px solid #2d2f36!important}
+        .stButton>button{background:#1e3a8a;color:#e5e7eb;border-radius:10px}
         </style>""", unsafe_allow_html=True)
 
 def set_activity(): st.session_state["last_activity"] = time.time()
@@ -143,10 +149,11 @@ def low_csat_clientes(df: pd.DataFrame)->pd.DataFrame:
 
 # ====== FILTROS ======
 def filtros_tickets(df: pd.DataFrame, enable_agente_filter=False)->pd.DataFrame:
+    empresas_list = sorted(list_clientes()) 
     with st.expander("🔎 Filtros", expanded=True):
         c1,c2,c3,c4,c5 = st.columns(5)
         codigo = c1.text_input("Código", placeholder="TCK-...")
-        cliente = c2.text_input("Cliente")
+        cliente = c2.selectbox("Cliente", ["Todos"] + empresas_list) 
         filtro_mod = c3.selectbox("Módulo", ["Todos"]+sorted(list(set(MODULOS+df["Módulo_ERP"].dropna().astype(str).tolist()))))
         filtro_est = c4.selectbox("Estado", ["Todos"]+[e for e in ESTADOS if e in df["Estado"].unique()])
         filtro_pri = c5.selectbox("Prioridad", ["Todos"]+[p for p in PRIORIDADES if p in df["Prioridad"].unique()])
@@ -157,7 +164,7 @@ def filtros_tickets(df: pd.DataFrame, enable_agente_filter=False)->pd.DataFrame:
             agente_sel = "Todos"
     q = df.copy()
     if codigo: q = q[q["ID_Ticket"].astype(str).str.contains(codigo, case=False, na=False)]
-    if cliente: q = q[q["Empresa"].astype(str).str.contains(cliente, case=False, na=False)]
+    if cliente!="Todos": q = q[q["Empresa"]==cliente]
     if filtro_mod!="Todos": q = q[q["Módulo_ERP"]==filtro_mod]
     if filtro_est!="Todos": q = q[q["Estado"]==filtro_est]
     if filtro_pri!="Todos": q = q[q["Prioridad"]==filtro_pri]
@@ -245,7 +252,7 @@ def form_editar_ticket(ticket_id: str, df_tickets: pd.DataFrame, df_users: pd.Da
         else:
             st.info("No hubo cambios para guardar.")
 
-# ====== ALTA TICKET (filtra reportantes por cliente + alta in-line) ======
+# ====== ALTA TICKET ======
 def form_alta_ticket(df_tickets: pd.DataFrame, df_users: pd.DataFrame):
     st.subheader("➕ Crear nuevo ticket")
 
@@ -276,7 +283,7 @@ def form_alta_ticket(df_tickets: pd.DataFrame, df_users: pd.DataFrame):
 
     c1,c2,c3 = st.columns(3)
     with c1:
-        modulo = st.selectbox("Módulo ERP*", sorted(list(set(MODULOS + df_tickets["Módulo_ERP"].dropna().astype(str).unique().tolist()))))
+        modulo = st.selectbox("Módulo ERP*", sorted(list(set(MODULOS + df_tickets["Módulo_ERP"].dropna().astype(str).tolist()))))
     with c2:
         prioridad = st.selectbox("Prioridad*", PRIORIDADES)
     with c3:
@@ -288,8 +295,7 @@ def form_alta_ticket(df_tickets: pd.DataFrame, df_users: pd.DataFrame):
         agente_soporte = st.selectbox("Asignar a agente*", sorted(agentes))
     else:
         agente_soporte = st.session_state["nombre_agente"]
-        st.info(f"**{n[1]}** – {n[0]}  
-{n[2]}")
+        st.info(f"El ticket se asignará a vos: **{agente_soporte}**")
 
     comentarios = st.text_area("Comentarios iniciales", placeholder="Detalle el incidente, pasos para replicar, capturas, etc.")
 
@@ -356,7 +362,7 @@ def backlog_aging_chart(df: pd.DataFrame, title="Backlog Aging (días)"):
     dfb = bins.value_counts().sort_index().reset_index(); dfb.columns = ["Rango", "Tickets"]
     st.altair_chart(chart_bar(dfb, "Rango:N", "Tickets:Q", title), use_container_width=True)
 
-# ====== KANBAN (interactivo con acciones en tarjeta) ======
+# ====== KANBAN ======
 def render_kanban(df: pd.DataFrame, df_users: pd.DataFrame):
     st.markdown("#### 🗂️ Vista Kanban por estado (acciones rápidas)")
     estados = ["Abierto","Priorizado","En Progreso","En Espera","Resuelto","Cerrado"]
@@ -378,7 +384,7 @@ def render_kanban(df: pd.DataFrame, df_users: pd.DataFrame):
                         registrar_auditoria_db(st.session_state["usuario"], st.session_state["rol"], tid, "Estado", est, nuevo_estado, "Kanban")
                         st.success("Estado actualizado."); st.rerun()
 
-# ====== PAGES ======
+# ====== DASHBOARD AGENTE ======
 def page_dashboard_agent(df_t: pd.DataFrame, df_u: pd.DataFrame):
     ag = st.session_state["nombre_agente"]
     st.subheader("📊 Dashboard – Mi desempeño")
@@ -398,6 +404,7 @@ def page_dashboard_agent(df_t: pd.DataFrame, df_u: pd.DataFrame):
     st.altair_chart(_timeseries(mine, "Tickets por día (yo)"), use_container_width=True)
     backlog_aging_chart(mine, "Backlog Aging (yo)")
 
+# ====== DASHBOARD COORDINACIÓN ======
 def page_dashboard_coord(df_t: pd.DataFrame):
     st.subheader("📊 Dashboard – Coordinación")
     fmin,fmax = _date_range(df_t)
@@ -431,6 +438,7 @@ def page_dashboard_coord(df_t: pd.DataFrame):
     st.altair_chart(_timeseries(q, "Tickets por día (global / filtrado)"), use_container_width=True)
     backlog_aging_chart(q, "Backlog Aging (global / filtrado)")
 
+# ====== ACCIONES MASIVAS ======
 def acciones_masivas(df_filtrado: pd.DataFrame, df_users: pd.DataFrame):
     st.markdown("#### ⚡ Acciones masivas (Coordinación)")
     ids = df_filtrado["ID_Ticket"].astype(str).tolist()
@@ -462,28 +470,56 @@ def acciones_masivas(df_filtrado: pd.DataFrame, df_users: pd.DataFrame):
                 upsert_ticket(df_local.loc[idx].to_dict()); changed += 1
             st.success(f"Actualizados: {changed}"); st.rerun()
 
+# ====== SELECCIÓN TICKET PARA EDICIÓN DETALLADA ======
+def seleccionar_ticket_data_editor(df: pd.DataFrame):
+    ids = df["ID_Ticket"].astype(str).tolist()
+    if not ids:
+        st.info("No hay tickets para editar con los filtros actuales.")
+        return None
+    st.markdown("---")
+    st.markdown("#### Seleccionar Ticket para Edición Detallada")
+    opciones = [''] + ids
+    seleccion = st.selectbox(
+        "Selecciona el ID del ticket para cargar el formulario de edición:",
+        options=opciones,
+        index=0, 
+        key="selector_edicion_ticket",
+        label_visibility="collapsed"
+    )
+    if seleccion == '':
+        return None
+    return seleccion
+
+# ====== PÁGINA DE TICKETS ======
 def page_tickets(df_t: pd.DataFrame, df_u: pd.DataFrame, enable_agente_filter=False):
     st.subheader("📋 Gestión de Tickets")
     df_f = filtros_tickets(df_t, enable_agente_filter=enable_agente_filter)
     cols = ["ID_Ticket","Empresa","Usuario_Reportante","Agente_Soporte","Módulo_ERP","Prioridad","Categoría","Estado","SLA","Fecha_Creación","Tiempo_Resolución_hs","Satisfacción","Comentarios"]
     tabla_estilada_criticos(df_f[cols].sort_values("Fecha_Creación", ascending=False))
-    # Exportar CSV
     csv = df_f[cols].to_csv(index=False).encode("utf-8-sig")
     st.download_button("⬇️ Exportar CSV", data=csv, file_name="tickets_filtrados.csv", mime="text/csv", use_container_width=True)
-    # Kanban
     with st.expander("🗂️ Vista Kanban", expanded=False):
         render_kanban(df_f, df_u)
     if st.session_state["rol"]=="Coordinación": acciones_masivas(df_f, df_u)
-    sel = seleccionar_ticket(df_f)
+    sel = seleccionar_ticket_data_editor(df_f)
     if sel: form_editar_ticket(sel, df_t, df_u)
 
-# ====== MAIN ======
+# ====== MAIN APP LOOP ======
 def main():
     st.sidebar.selectbox("Tema", ["Claro","Oscuro"], key="tema", on_change=aplicar_tema); aplicar_tema(); check_session_timeout()
     df_users = ensure_user_schema(load_usuarios_df()); df_tickets = ensure_ticket_schema(load_tickets_df())
+    st.sidebar.markdown(
+        """
+        <h1 style='color: white; font-size: 24px; margin-bottom: 0px;'>⚙️ <span style='font-weight: 300;'>Gestión de</span> Tickets v9.3</h1>
+        <h2 style='color: #bdc3c7; font-size: 14px; margin-top: 0px; font-weight: normal;'>Plataforma Soporte ERP</h2>
+        <hr style='margin-top: 5px; margin-bottom: 20px; border-top: 1px solid #bdc3c7;'>
+        """,
+        unsafe_allow_html=True
+    )
+
     if not st.session_state.get("logged", False): do_login(df_users); return
     cA,cB,cC = st.columns([2,2,1])
-    with cA: st.markdown(f"**👤 {st.session_state['nombre_agente']}**  |  **Rol:** {st.session_state['rol']}")
+    with cA: st.markdown(f"**👤 {st.session_state['nombre_agente']}** |  **Rol:** {st.session_state['rol']}")
     with cB: st.caption(f"Usuario: {st.session_state['usuario']}")
     with cC:
         if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -496,7 +532,7 @@ def main():
         if pagina=="Dashboard": page_dashboard_coord(df_tickets)
         elif pagina=="Tickets": page_tickets(df_tickets, df_users, enable_agente_filter=True)
         elif pagina=="Crear ticket": form_alta_ticket(df_tickets, df_users)
-        elif pagina=="Estadísticas & Análisis": page_dashboard_agent(df_tickets, df_users)  # reutiliza KPIs
+        elif pagina=="Estadísticas & Análisis": page_dashboard_agent(df_tickets, df_users) 
     else:
         pagina = st.sidebar.radio("Navegación", ["Dashboard","Tickets","Crear ticket"])
         if pagina=="Dashboard": page_dashboard_agent(df_tickets, df_users)
@@ -504,7 +540,7 @@ def main():
         elif pagina=="Crear ticket": form_alta_ticket(df_tickets, df_users)
 
     st.markdown("<hr/>", unsafe_allow_html=True)
-    st.caption("Versión 8 – Soporte ERP Portfolio")
+    st.caption("© 2025 – Soporte ERP Portfolio (v9.3). Desarrollado para portafolio profesional.")
 
     with st.expander("📝 Ver auditoría de cambios"):
         if USE_API:
