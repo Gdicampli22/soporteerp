@@ -1,4 +1,33 @@
 import streamlit as st, pandas as pd, altair as alt, time
+
+
+# === VALIDACIONES PROFESIONALES ===
+def validar_ticket(data):
+    obligatorios = ["Empresa","Usuario_Reportante","Modulo","Prioridad","Categoria","Descripcion"]
+    for campo in obligatorios:
+        if not data.get(campo):
+            st.error(f"El campo {campo} es obligatorio.")
+            return False
+    return True
+
+# === SISTEMA DE NOTAS INTERNAS (PLACEHOLDER) ===
+def mostrar_notas(id_ticket, conn):
+    st.subheader("📝 Notas internas")
+    notas = conn.execute("SELECT fecha, usuario, nota FROM Notas WHERE id_ticket=? ORDER BY fecha DESC",(id_ticket,)).fetchall()
+    for n in notas:
+        st.info(f"**{n[1]}** – {n[0]}  
+{n[2]}")
+    nueva = st.text_area("Agregar nueva nota")
+    if st.button("Guardar nota"):
+        conn.execute("INSERT INTO Notas (id_ticket, fecha, usuario, nota) VALUES (?,?,?,?)",
+                     (id_ticket, str(datetime.date.today()), st.session_state.get("user",""), nueva))
+        conn.commit()
+        st.rerun()
+
+st.image('static/logo.png', width=180)
+st.markdown('# 🧰 Soporte de Aplicaciones ERP')
+st.image('static/banner.jpg', use_container_width=True)
+
 from datetime import datetime, timedelta, date
 
 # ====== CONFIG ======
